@@ -19,6 +19,7 @@ const state = {
   q: '',
   perComposer: store.get('perComposer', false),
   addCat: store.get('addCat', 'classica'),
+  filter: '',
 };
 
 /* ---------- utilità interfaccia ---------- */
@@ -44,9 +45,9 @@ for (const dlg of document.querySelectorAll('dialog')) {
 
 /* ---------- schede e ricerca ---------- */
 function buildTabs() {
-  $('#tabs').innerHTML = CATS.map(
-    (c) => `<button class="tab" role="tab" data-cat="${c.id}" aria-selected="false">${c.name}<small>0</small></button>`,
-  ).join('');
+  $('#tabs').innerHTML = [{ id: 'summary', name: 'Riepilogo' }, ...CATS]
+    .map((c) => `<button class="tab" role="tab" data-cat="${c.id}" aria-selected="false">${c.name}<small>0</small></button>`)
+    .join('');
 }
 $('#tabs').addEventListener('click', (e) => {
   const b = e.target.closest('.tab');
@@ -61,6 +62,11 @@ $('#q').addEventListener('input', (e) => {
   clearTimeout(searchTimer);
   searchTimer = setTimeout(() => {
     state.q = e.target.value;
+    if (state.cat === 'summary' && state.q.trim()) {
+      const hit = CATS.find((c) => state.records.some((r) => r.cat === c.id && matches(r, state.q)));
+      state.cat = hit?.id || 'classica';
+      store.set('cat', state.cat);
+    }
     render();
   }, 120);
 });
@@ -107,17 +113,33 @@ function backupNudge() {
   return `<div class="nudge"><p>${changes} modifiche dall'ultimo backup. I dati sono solo su questo telefono: salva una copia.</p><button class="btn" data-act="backup">Salva backup Excel</button></div>`;
 }
 
+const FILTERS = {
+  incomplete: ['Da completare', (r) => (isClassic(r.cat) ? !worksOf(r).length : !(r.artist || r.title))],
+  nocatno: ['Senza numero di catalogo', (r) => !r.catno],
+  nobarcode: ['Senza codice a barre', (r) => !r.barcode],
+  nocover: ['Senza copertina', (r) => !r.cover],
+};
+const filterBar = () =>
+  state.filter
+    ? `<div class="nudge"><p>Filtro: <b>${FILTERS[state.filter][0]}</b></p><button class="btn" data-act="clearfilter">Mostra tutti</button></div>`
+    : '';
+
 function render() {
-  const inCat = state.records.filter((r) => r.cat === state.cat);
   const q = state.q.trim();
+  const pass = (r) => (!q || matches(r, q)) && (!state.filter || FILTERS[state.filter][1](r));
   const counts = Object.fromEntries(CATS.map((c) => [c.id, 0]));
-  for (const r of state.records) if (!q || matches(r, q)) counts[r.cat]++;
+  for (const r of state.records) if (pass(r)) counts[r.cat]++;
   document.querySelectorAll('.tab').forEach((b) => {
     b.setAttribute('aria-selected', String(b.dataset.cat === state.cat));
-    b.querySelector('small').textContent = counts[b.dataset.cat];
+    b.querySelector('small').textContent = b.dataset.cat === 'summary' ? state.records.length : counts[b.dataset.cat];
   });
 
-  const shown = q ? inCat.filter((r) => matches(r, q)) : inCat;
+  if (state.cat === 'summary') {
+    $('#rail').innerHTML = '';
+    $('#list').innerHTML = summaryHtml();
+    return;
+  }
+  const shown = state.records.filter((r) => r.cat === state.cat && pass(r));
   const entries = [];
   for (const rec of shown) {
     const cs = composersOf(rec);
@@ -133,8 +155,9 @@ function render() {
   const rail = $('#rail');
   if (!shown.length) {
     rail.innerHTML = '';
-    if (q) {
-      list.innerHTML = `<div class="empty-state"><p>Nessun risultato per «${esc(q)}» in ${catName(state.cat)}.</p><p>Controlla le altre categorie: i numeri sulle schede mostrano dove ci sono corrispondenze.</p></div>`;
+    if (q || state.filter) {
+      const what = q ? `Nessun risultato per «${esc(q)}»` : `Nessun disco con il filtro «${FILTERS[state.filter][0]}»`;
+      list.innerHTML = `${filterBar()}<div class="empty-state"><p>${what} in ${catName(state.cat)}.</p><p>Controlla le altre categorie: i numeri sulle schede mostrano dove ci sono corrispondenze.</p></div>`;
     } else if (!state.records.length) {
       list.innerHTML = `<div class="empty-state"><p>Il catalogo è vuoto. Tocca «Aggiungi disco» e inquadra il codice a barre sul retro della copertina.</p><p>Hai già un file Excel? Importalo dal menu in alto a destra.</p><button class="btn" data-act="import">Importa da Excel</button></div>${backupNudge()}`;
     } else {
@@ -143,7 +166,7 @@ function render() {
     return;
   }
 
-  let html = backupNudge();
+  let html = filterBar() + backupNudge();
   let current = null;
   const letters = [];
   for (const e of entries) {
@@ -161,6 +184,94 @@ function render() {
   rail.innerHTML = letters.length >= 4 ? letters.map((l) => `<button data-letter="${l === '#' ? 'num' : l}" aria-label="Vai a ${l}">${l}</button>`).join('') : '';
 }
 
+/* ---------- riepilogo generale ---------- */
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+const srow = (label, count, max, attrs, sub = '') =>
+  `<button class="srow" ${attrs} style="--w:${max && count ? Math.max(3, Math.round((count / max) * 100)) : 0}%"><span class="sl">${label}${sub ? `<small>${sub}</small>` : ''}</span><span class="sn">${count}</span></button>`;
+
+function tally(recs, namesOf) {
+  const map = new Map();
+  for (const r of recs) {
+    for (const name of namesOf(r)) {
+      const key = norm(name);
+      if (!key) continue;
+      const e = map.get(key) || { name, n: 0, cats: {} };
+      e.n++;
+      e.cats[r.cat] = (e.cats[r.cat] || 0) + 1;
+      map.set(key, e);
+    }
+  }
+  return [...map.values()].sort((a, b) => b.n - a.n || a.name.localeCompare(b.name, 'it')).slice(0, 5);
+}
+const bestCat = (e) => Object.entries(e.cats).sort((a, b) => b[1] - a[1])[0][0];
+const topRows = (list) =>
+  list.map((e) => srow(esc(e.name), e.n, list[0].n, `data-go data-cat="${bestCat(e)}" data-q="${esc(e.name)}"`)).join('');
+
+function summaryHtml() {
+  const recs = state.records;
+  if (!recs.length) {
+    return `<div class="empty-state"><p>Il riepilogo comparirà quando avrai aggiunto qualche disco.</p><button class="btn" data-act="import">Importa da Excel</button></div>`;
+  }
+  const n = recs.length;
+  const ids = recs.map((r) => r.id).sort();
+  const perCat = CATS.map((c) => [c, recs.filter((r) => r.cat === c.id).length]);
+  const maxCat = Math.max(...perCat.map(([, k]) => k));
+
+  const composers = tally(recs.filter((r) => isClassic(r.cat)), composersOf);
+  const artists = tally(recs.filter((r) => !isClassic(r.cat)), (r) => [r.artist]);
+  const labels = tally(recs, (r) => [r.label]);
+
+  const decades = new Map();
+  let withYear = 0;
+  for (const r of recs) {
+    const y = parseInt(r.year, 10);
+    if (y > 1800 && y < 2100) {
+      withYear++;
+      decades.set(Math.floor(y / 10) * 10, (decades.get(Math.floor(y / 10) * 10) || 0) + 1);
+    }
+  }
+  const decRows = [...decades].sort((a, b) => a[0] - b[0]);
+  const maxDec = Math.max(0, ...decades.values());
+
+  const gaps = Object.entries(FILTERS)
+    .map(([key, [label, fn]]) => {
+      const hit = recs.filter(fn);
+      const cat = CATS.find((c) => hit.some((r) => r.cat === c.id))?.id;
+      return hit.length ? srow(label, hit.length, n, `data-go data-cat="${cat}" data-filter="${key}"`) : '';
+    })
+    .join('');
+
+  const latest = [...recs]
+    .sort((a, b) => (b.created || 0) - (a.created || 0) || b.id.localeCompare(a.id))
+    .slice(0, 5)
+    .map((r) => {
+      const main = isClassic(r.cat) ? composersOf(r)[0] || worksOf(r)[0]?.title || 'Da completare' : r.artist || r.title || 'Da completare';
+      const sub = isClassic(r.cat) ? worksOf(r)[0]?.title || '' : r.title || '';
+      return `<button class="srow latest" data-open="${esc(r.id)}"><span class="sticker">${esc(r.id)}</span><span class="sl">${esc(main)}${sub && sub !== main ? `<small>${esc(sub)}</small>` : ''}</span></button>`;
+    })
+    .join('');
+
+  const changes = store.get('changes', 0);
+  const sec = (title, body, note = '') => (body ? `<section class="sum-sec"><h3>${title}</h3>${note ? `<p class="stat">${note}</p>` : ''}${body}</section>` : '');
+
+  return `<div class="sum">
+    <header class="sum-head"><h2>${plural(n, 'disco', 'dischi')} in catalogo</h2><p class="stat">Indici da ${esc(ids[0])} a ${esc(ids[ids.length - 1])}</p></header>
+    <div class="sum-grid">
+      ${sec('Per categoria', perCat.map(([c, k]) => srow(c.name, k, maxCat, `data-go data-cat="${c.id}"`)).join(''))}
+      ${sec('Compositori più presenti', topRows(composers), 'Dischi in cui compare, tra Classica e Lirica.')}
+      ${sec('Artisti più presenti', topRows(artists))}
+      ${sec('Etichette più presenti', topRows(labels))}
+      ${sec('Per decennio', decRows.map(([d, k]) => srow(`Anni ${d}`, k, maxDec, '')).join(''), `Anno indicato per ${withYear} dischi su ${n}.`)}
+      ${sec('Da completare', gaps, 'Tocca una voce per vedere quali dischi sono.')}
+      ${sec('Ultimi aggiunti', latest)}
+      <section class="sum-sec"><h3>Backup</h3>
+        <p class="stat">Ultimo backup: ${fmtDate(store.get('lastBackup', ''))}${changes ? ` · ${plural(changes, 'modifica', 'modifiche')} da allora` : ''}.</p>
+        <button class="btn" data-act="backup">Salva backup Excel</button>
+      </section>
+    </div>
+  </div>`;
+}
+
 $('#rail').addEventListener('click', (e) => {
   const b = e.target.closest('button');
   if (!b) return;
@@ -172,6 +283,19 @@ $('#list').addEventListener('click', (e) => {
   const act = e.target.closest('[data-act]')?.dataset.act;
   if (act === 'backup') return doExportXlsx();
   if (act === 'import') return $('#fileImport').click();
+  if (act === 'clearfilter') { state.filter = ''; return render(); }
+  const go = e.target.closest('[data-go]');
+  if (go) {
+    state.cat = go.dataset.cat;
+    state.q = go.dataset.q || '';
+    state.filter = go.dataset.filter || '';
+    $('#q').value = state.q;
+    store.set('cat', state.cat);
+    window.scrollTo(0, 0);
+    return render();
+  }
+  const open = e.target.closest('[data-open]');
+  if (open) return openForm(editDraft(open.dataset.open));
   const row = e.target.closest('.rec');
   if (row) openForm(editDraft(row.dataset.id));
 });
@@ -442,7 +566,7 @@ function openAdd(cat) {
   $('#dlgAdd').showModal();
   startScan();
 }
-$('#btnAdd').addEventListener('click', () => openAdd(state.cat));
+$('#btnAdd').addEventListener('click', () => openAdd(CATS.some((c) => c.id === state.cat) ? state.cat : state.addCat));
 $('#dlgAdd').addEventListener('close', () => Scan.stop());
 document.addEventListener('visibilitychange', () => document.hidden && Scan.stop());
 

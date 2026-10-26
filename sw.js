@@ -1,6 +1,6 @@
 // Service worker: l'app funziona offline dopo la prima apertura.
 // Cambia VERSION a ogni aggiornamento dei file per forzare il ricaricamento.
-const VERSION = 'vinili-v2';
+const VERSION = 'vinili-v3';
 const ASSETS = [
   './', 'index.html', 'styles.css', 'app.js', 'db.js', 'util.js', 'io.js', 'scanner.js', 'mb.js',
   'manifest.webmanifest', 'vendor/xlsx.full.min.js', 'vendor/zxing.min.js',
