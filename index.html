@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Vinili</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#e8ebe4" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#121714" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Vinili">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="chrome" id="chrome">
+    <div class="bar">
+      <h1>Vinili</h1>
+      <input id="q" type="search" placeholder="Cerca nel catalogo" enterkeyhint="search" autocomplete="off" aria-label="Cerca nel catalogo">
+      <button class="btn icon" id="btnMenu" aria-label="Menu">
+        <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><circle cx="4" cy="10" r="1.7" fill="currentColor"/><circle cx="10" cy="10" r="1.7" fill="currentColor"/><circle cx="16" cy="10" r="1.7" fill="currentColor"/></svg>
+      </button>
+    </div>
+    <nav class="tabs" id="tabs" role="tablist" aria-label="Categorie"></nav>
+  </div>
+
+  <main id="list" aria-live="polite"></main>
+  <nav class="rail" id="rail" aria-label="Indice alfabetico"></nav>
+
+  <button class="fab" id="btnAdd">
+    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v14M3 10h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+    Aggiungi disco
+  </button>
+
+  <dialog id="dlgAdd" class="sheet" aria-labelledby="addTitle">
+    <header class="sheet-h">
+      <h2 id="addTitle">Aggiungi disco</h2>
+      <button class="btn icon" data-close aria-label="Chiudi">×</button>
+    </header>
+    <div class="sheet-b">
+      <div class="seg" id="addCats" role="radiogroup" aria-label="Categoria del disco"></div>
+      <section id="scanPane">
+        <div class="viewfinder">
+          <video id="vid" playsinline muted></video>
+          <div class="reticle"><i></i></div>
+          <button class="btn torch" id="btnTorch" hidden>Luce</button>
+        </div>
+        <p class="hint" id="scanMsg">Inquadra il codice a barre sul retro della copertina.</p>
+        <div class="row-actions">
+          <label class="btn">Foto del codice<input type="file" accept="image/*" capture="environment" id="fileBar" hidden></label>
+          <button class="btn" id="btnManual">Inserisci a mano</button>
+        </div>
+        <form id="searchForm" class="inline-form">
+          <input id="searchQ" placeholder="Codice, n. catalogo o titolo" inputmode="search" autocomplete="off" aria-label="Cerca per codice, numero di catalogo o titolo">
+          <button class="btn primary">Cerca</button>
+        </form>
+      </section>
+      <section id="resPane" hidden>
+        <p class="hint" id="resMsg"></p>
+        <ul class="results" id="resList"></ul>
+        <div class="row-actions">
+          <button class="btn" id="btnRescan">Scansiona di nuovo</button>
+          <button class="btn" id="btnManualRes">Inserisci a mano</button>
+        </div>
+      </section>
+    </div>
+  </dialog>
+
+  <dialog id="dlgForm" class="sheet" aria-labelledby="formTitle"></dialog>
+  <dialog id="dlgMenu" class="sheet" aria-labelledby="menuTitle"></dialog>
+  <dialog id="dlgImport" class="sheet" aria-labelledby="impTitle"></dialog>
+
+  <datalist id="dlComposers"></datalist>
+  <datalist id="dlLabels"></datalist>
+  <input type="file" id="fileImport" accept=".xlsx,.xls,.json" hidden>
+  <div class="toast" id="toast" role="status"></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
