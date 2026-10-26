@@ -90,20 +90,30 @@ export function matches(r, q) {
 }
 
 const loaded = new Map();
-export function loadScript(src) {
-  if (!loaded.has(src)) {
-    loaded.set(
-      src,
-      new Promise((resolve, reject) => {
-        const s = document.createElement('script');
-        s.src = src;
-        s.onload = resolve;
-        s.onerror = () => reject(new Error('Impossibile caricare ' + src));
-        document.head.append(s);
-      }),
-    );
+// Carica uno script provando in ordine più indirizzi (copia locale, poi CDN).
+export function loadScript(srcs) {
+  const list = [].concat(srcs);
+  const key = list[0];
+  if (!loaded.has(key)) {
+    const p = (async () => {
+      for (const src of list) {
+        try {
+          await new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = src;
+            s.onload = resolve;
+            s.onerror = () => { s.remove(); reject(new Error(src)); };
+            document.head.append(s);
+          });
+          return;
+        } catch { /* prossimo indirizzo */ }
+      }
+      throw new Error('Libreria non trovata. Controlla che la cartella "vendor" sia stata caricata sul server insieme agli altri file.');
+    })();
+    p.catch(() => loaded.delete(key));
+    loaded.set(key, p);
   }
-  return loaded.get(src);
+  return loaded.get(key);
 }
 
 // Riduce una foto/blob a una miniatura JPEG (data URL) per tenere leggero l'archivio.

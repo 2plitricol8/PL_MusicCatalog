@@ -1,6 +1,6 @@
 // Service worker: l'app funziona offline dopo la prima apertura.
 // Cambia VERSION a ogni aggiornamento dei file per forzare il ricaricamento.
-const VERSION = 'vinili-v1';
+const VERSION = 'vinili-v2';
 const ASSETS = [
   './', 'index.html', 'styles.css', 'app.js', 'db.js', 'util.js', 'io.js', 'scanner.js', 'mb.js',
   'manifest.webmanifest', 'vendor/xlsx.full.min.js', 'vendor/zxing.min.js',
@@ -8,7 +8,7 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(VERSION).then((c) => Promise.allSettled(ASSETS.map((a) => c.add(a)))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {

@@ -31,7 +31,7 @@ async function getDecoder() {
       /* si passa a ZXing */
     }
   }
-  await loadScript('vendor/zxing.min.js');
+  await loadScript(['vendor/zxing.min.js', 'https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js']);
   const Z = globalThis.ZXing;
   const hints = new Map();
   hints.set(Z.DecodeHintType.POSSIBLE_FORMATS, [Z.BarcodeFormat.EAN_13, Z.BarcodeFormat.UPC_A, Z.BarcodeFormat.EAN_8]);

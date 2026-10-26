@@ -4,7 +4,7 @@ import { CATS, isClassic, norm, tidyComposer, formatId, worksOf, sortKeyFor, com
 const OPERA_RE = /\b(opera|highlights?|selezione|arie|aria|atti|atto)\b/i;
 
 async function xlsxLib() {
-  if (!globalThis.XLSX) await loadScript('vendor/xlsx.full.min.js');
+  if (!globalThis.XLSX) await loadScript(['vendor/xlsx.full.min.js', 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js']);
   return globalThis.XLSX;
 }
 export const preloadXlsx = () => xlsxLib().catch(() => {});

@@ -624,14 +624,14 @@ async function doExportXlsx() {
   try {
     const res = await IO.saveBlob(await IO.xlsxBlob(state.records), `vinili-${stamp()}.xlsx`);
     if (res !== 'cancelled') { markBackup(); toast('File Excel pronto'); }
-  } catch { toast('Esportazione non riuscita.'); }
+  } catch (e) { toast(e.message || 'Esportazione non riuscita.'); }
 }
 async function doExportJson() {
   if (!state.records.length) return toast('Non c\'è ancora nulla da esportare.');
   try {
     const res = await IO.saveBlob(IO.backupJson(state.records), `vinili-backup-${stamp()}.json`);
     if (res !== 'cancelled') { markBackup(); toast('Backup salvato'); }
-  } catch { toast('Backup non riuscito.'); }
+  } catch (e) { toast(e.message || 'Backup non riuscito.'); }
 }
 
 $('#fileImport').addEventListener('change', async (e) => {
