@@ -1,8 +1,11 @@
 // Service worker: l'app funziona offline dopo la prima apertura.
-// Cambia VERSION a ogni aggiornamento dei file per forzare il ricaricamento.
-const VERSION = 'vinili-v3';
+// La versione arriva da version.js: cambiandola l'app si aggiorna.
+try { importScripts('version.js'); } catch { self.APP_VERSION = 'dev'; }
+const VERSION = 'libreriamusicalepl-' + self.APP_VERSION;
+// Si toccano solo le cache di questa app (altre app sullo stesso dominio restano intatte).
+const OWN_PREFIXES = ['libreriamusicalepl-', 'vinili-'];
 const ASSETS = [
-  './', 'index.html', 'styles.css', 'app.js', 'db.js', 'util.js', 'io.js', 'scanner.js', 'mb.js',
+  './', 'index.html', 'styles.css', 'app.js', 'db.js', 'util.js', 'io.js', 'scanner.js', 'mb.js', 'version.js',
   'manifest.webmanifest', 'vendor/xlsx.full.min.js', 'vendor/zxing.min.js',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
 ];
@@ -14,7 +17,7 @@ self.addEventListener('install', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== VERSION).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k !== VERSION && OWN_PREFIXES.some((p) => k.startsWith(p))).map((k) => caches.delete(k))))
       .then(() => self.clients.claim()),
   );
 });

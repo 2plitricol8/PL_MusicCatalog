@@ -50,7 +50,6 @@ button, input, textarea, select { font: inherit; color: inherit; }
   padding-top: env(safe-area-inset-top);
 }
 .bar { display: flex; align-items: center; gap: 10px; padding: 10px 14px 8px; }
-.bar h1 { margin: 0; font: 700 24px/1 var(--serif); letter-spacing: -.01em; }
 .bar input[type=search] {
   flex: 1; min-width: 0; height: 42px; padding: 0 14px;
   background: var(--card); border: 1px solid var(--rule); border-radius: 10px;
@@ -272,3 +271,25 @@ textarea { min-height: 76px; resize: vertical; }
 .srow.latest { justify-content: flex-start; }
 .srow.latest::before { display: none; }
 .srow:hover:is([data-go], [data-open]) { background: color-mix(in srgb, var(--card) 70%, transparent); }
+
+/* ---------- Testata, formato, firma ---------- */
+.masthead { display: flex; align-items: baseline; gap: 10px; padding: 12px 14px 4px; max-width: 1180px; margin: 0 auto; }
+.masthead h1 { margin: 0; font: 700 22px/1.1 var(--serif); letter-spacing: -.01em; }
+.ver { font: 12px/1 var(--mono); color: var(--muted); }
+.chrome .bar { padding-top: 6px; }
+.fmt { display: flex; flex: none; border: 1px solid var(--rule); border-radius: 10px; overflow: hidden; background: var(--card); }
+.fmtb {
+  display: flex; align-items: baseline; gap: 5px; min-height: 42px; padding: 0 12px; align-items: center;
+  background: none; border: 0; cursor: pointer; font-weight: 700; font-size: 15px; color: var(--muted);
+}
+.fmtb + .fmtb { border-left: 1px solid var(--rule); }
+.fmtb small { font: 500 11px/1 var(--mono); }
+.fmtb[aria-pressed=true] { background: var(--ink); color: var(--paper); }
+.fmtb:focus-visible { outline-offset: -3px; }
+.seg.two { grid-template-columns: repeat(2, 1fr); }
+.about { text-align: center; color: var(--muted); font-size: 13px; padding: 18px 14px 4px; }
+.menu-list .about-box { margin: 6px 0 0; padding-top: 12px; border-top: 1px solid var(--rule); text-align: center; color: var(--muted); font-size: 13px; }
+.menu-list .about-box b { color: var(--ink); font-family: var(--serif); font-size: 15px; }
+@media (max-width: 360px) { .fmtb { padding: 0 9px; } .bar { gap: 8px; } }
+
+#scanPane, #resPane { display: grid; gap: 12px; }

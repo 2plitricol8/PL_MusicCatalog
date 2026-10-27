@@ -1,13 +1,14 @@
 import * as DB from './db.js';
 import {
   CATS, catName, isClassic, esc, tidyComposer, formatId, worksOf, composersOf, sortKeyFor, compareEntries,
-  letterOf, nextId, matches, resizeImage, norm,
+  letterOf, nextId, matches, resizeImage, norm, FORMATS, fmtOf, APP_NAME, APP_CREDIT, appVersion,
 } from './util.js';
 import * as IO from './io.js';
 import * as Scan from './scanner.js';
 import * as MB from './mb.js';
 
 const $ = (s, r = document) => r.querySelector(s);
+// Il prefisso 'vinili.' (e il database 'vinili') restano invariati di proposito: così i dati già salvati non si perdono.
 const store = {
   get: (k, d) => { try { return JSON.parse(localStorage.getItem('vinili.' + k)) ?? d; } catch { return d; } },
   set: (k, v) => { try { localStorage.setItem('vinili.' + k, JSON.stringify(v)); } catch { /* spazio finito */ } },
@@ -19,8 +20,12 @@ const state = {
   q: '',
   perComposer: store.get('perComposer', false),
   addCat: store.get('addCat', 'classica'),
+  fmt: store.get('fmt', 'LP'),
+  addFmt: store.get('fmt', 'LP'),
   filter: '',
 };
+const inFmt = (fmt = state.fmt) => state.records.filter((r) => fmtOf(r.id) === fmt);
+const addLabel = () => `Aggiungi ${state.fmt}`;
 
 /* ---------- utilità interfaccia ---------- */
 let toastTimer;
@@ -57,13 +62,25 @@ $('#tabs').addEventListener('click', (e) => {
   window.scrollTo(0, 0);
   render();
 });
+$('#fmt').addEventListener('click', (e) => {
+  const b = e.target.closest('.fmtb');
+  if (!b || b.dataset.fmt === state.fmt) return;
+  setFormat(b.dataset.fmt);
+});
+function setFormat(fmt) {
+  state.fmt = fmt;
+  state.filter = '';
+  store.set('fmt', fmt);
+  window.scrollTo(0, 0);
+  render();
+}
 let searchTimer;
 $('#q').addEventListener('input', (e) => {
   clearTimeout(searchTimer);
   searchTimer = setTimeout(() => {
     state.q = e.target.value;
     if (state.cat === 'summary' && state.q.trim()) {
-      const hit = CATS.find((c) => state.records.some((r) => r.cat === c.id && matches(r, state.q)));
+      const hit = CATS.find((c) => inFmt().some((r) => r.cat === c.id && matches(r, state.q)));
       state.cat = hit?.id || 'classica';
       store.set('cat', state.cat);
     }
@@ -127,19 +144,25 @@ const filterBar = () =>
 function render() {
   const q = state.q.trim();
   const pass = (r) => (!q || matches(r, q)) && (!state.filter || FILTERS[state.filter][1](r));
+  const mine = inFmt();
   const counts = Object.fromEntries(CATS.map((c) => [c.id, 0]));
-  for (const r of state.records) if (pass(r)) counts[r.cat]++;
+  for (const r of mine) if (pass(r)) counts[r.cat]++;
   document.querySelectorAll('.tab').forEach((b) => {
     b.setAttribute('aria-selected', String(b.dataset.cat === state.cat));
-    b.querySelector('small').textContent = b.dataset.cat === 'summary' ? state.records.length : counts[b.dataset.cat];
+    b.querySelector('small').textContent = b.dataset.cat === 'summary' ? mine.length : counts[b.dataset.cat];
   });
+  document.querySelectorAll('.fmtb').forEach((b) => {
+    b.setAttribute('aria-pressed', String(b.dataset.fmt === state.fmt));
+    b.querySelector('small').textContent = inFmt(b.dataset.fmt).filter(pass).length;
+  });
+  $('#addLbl').textContent = addLabel();
 
   if (state.cat === 'summary') {
     $('#rail').innerHTML = '';
     $('#list').innerHTML = summaryHtml();
     return;
   }
-  const shown = state.records.filter((r) => r.cat === state.cat && pass(r));
+  const shown = mine.filter((r) => r.cat === state.cat && pass(r));
   const entries = [];
   for (const rec of shown) {
     const cs = composersOf(rec);
@@ -157,11 +180,16 @@ function render() {
     rail.innerHTML = '';
     if (q || state.filter) {
       const what = q ? `Nessun risultato per «${esc(q)}»` : `Nessun disco con il filtro «${FILTERS[state.filter][0]}»`;
-      list.innerHTML = `${filterBar()}<div class="empty-state"><p>${what} in ${catName(state.cat)}.</p><p>Controlla le altre categorie: i numeri sulle schede mostrano dove ci sono corrispondenze.</p></div>`;
+      const other = FORMATS.find((f) => f !== state.fmt);
+      const otherHits = q ? inFmt(other).filter((r) => matches(r, q)).length : 0;
+      const jump = otherHits ? `<button class="btn" data-fmtgo="${other}">Mostra i ${otherHits} risultati in ${other}</button>` : '';
+      list.innerHTML = `${filterBar()}<div class="empty-state"><p>${what} in ${state.fmt}, ${catName(state.cat)}.</p><p>Controlla le altre categorie: i numeri sulle schede mostrano dove ci sono corrispondenze.</p>${jump}</div>`;
     } else if (!state.records.length) {
-      list.innerHTML = `<div class="empty-state"><p>Il catalogo è vuoto. Tocca «Aggiungi disco» e inquadra il codice a barre sul retro della copertina.</p><p>Hai già un file Excel? Importalo dal menu in alto a destra.</p><button class="btn" data-act="import">Importa da Excel</button></div>${backupNudge()}`;
+      list.innerHTML = `<div class="empty-state"><p>Il catalogo è vuoto. Tocca «${addLabel()}» e inquadra il codice a barre sul retro della copertina.</p><p>Hai già un file Excel? Importalo dal menu in alto a destra.</p><button class="btn" data-act="import">Importa da Excel</button></div>${backupNudge()}`;
+    } else if (!mine.length) {
+      list.innerHTML = `<div class="empty-state"><p>Non hai ancora nessun ${state.fmt} in catalogo.</p><p>Tocca «${addLabel()}» per inserire il primo.</p></div>${backupNudge()}`;
     } else {
-      list.innerHTML = `<div class="empty-state"><p>Nessun disco in ${catName(state.cat)}.</p><p>Tocca «Aggiungi disco» per inserirne uno.</p></div>${backupNudge()}`;
+      list.innerHTML = `<div class="empty-state"><p>Nessun disco in ${state.fmt}, ${catName(state.cat)}.</p><p>Tocca «${addLabel()}» per inserirne uno.</p></div>${backupNudge()}`;
     }
     return;
   }
@@ -207,10 +235,14 @@ const bestCat = (e) => Object.entries(e.cats).sort((a, b) => b[1] - a[1])[0][0];
 const topRows = (list) =>
   list.map((e) => srow(esc(e.name), e.n, list[0].n, `data-go data-cat="${bestCat(e)}" data-q="${esc(e.name)}"`)).join('');
 
+function totalsLine() {
+  return FORMATS.map((f) => `${inFmt(f).length} ${f}`).join(' · ');
+}
+
 function summaryHtml() {
-  const recs = state.records;
+  const recs = inFmt();
   if (!recs.length) {
-    return `<div class="empty-state"><p>Il riepilogo comparirà quando avrai aggiunto qualche disco.</p><button class="btn" data-act="import">Importa da Excel</button></div>`;
+    return `<div class="empty-state"><p>${state.records.length ? `Non hai ancora nessun ${state.fmt} in catalogo.` : 'Il riepilogo comparirà quando avrai aggiunto qualche disco.'}</p>${state.records.length ? '' : '<button class="btn" data-act="import">Importa da Excel</button>'}</div>`;
   }
   const n = recs.length;
   const ids = recs.map((r) => r.id).sort();
@@ -255,7 +287,7 @@ function summaryHtml() {
   const sec = (title, body, note = '') => (body ? `<section class="sum-sec"><h3>${title}</h3>${note ? `<p class="stat">${note}</p>` : ''}${body}</section>` : '');
 
   return `<div class="sum">
-    <header class="sum-head"><h2>${plural(n, 'disco', 'dischi')} in catalogo</h2><p class="stat">Indici da ${esc(ids[0])} a ${esc(ids[ids.length - 1])}</p></header>
+    <header class="sum-head"><h2>${n} ${state.fmt} in catalogo</h2><p class="stat">Indici da ${esc(ids[0])} a ${esc(ids[ids.length - 1])} · In tutto: ${totalsLine()}</p></header>
     <div class="sum-grid">
       ${sec('Per categoria', perCat.map(([c, k]) => srow(c.name, k, maxCat, `data-go data-cat="${c.id}"`)).join(''))}
       ${sec('Compositori più presenti', topRows(composers), 'Dischi in cui compare, tra Classica e Lirica.')}
@@ -284,6 +316,8 @@ $('#list').addEventListener('click', (e) => {
   if (act === 'backup') return doExportXlsx();
   if (act === 'import') return $('#fileImport').click();
   if (act === 'clearfilter') { state.filter = ''; return render(); }
+  const fg = e.target.closest('[data-fmtgo]');
+  if (fg) return setFormat(fg.dataset.fmtgo);
   const go = e.target.closest('[data-go]');
   if (go) {
     state.cat = go.dataset.cat;
@@ -323,7 +357,7 @@ function touchChanges(n = 1) {
 /* ---------- scheda disco (aggiunta/modifica) ---------- */
 let draft = null;
 const blank = (cat, base = {}) => ({
-  id: nextId(state.records), cat, works: [{ composer: '', title: '' }], artist: '', title: '', year: '', genre: '',
+  id: nextId(state.records, state.addFmt), cat, works: [{ composer: '', title: '' }], artist: '', title: '', year: '', genre: '',
   label: '', catno: '', barcode: '', notes: '', cover: '', coverUrl: '', mbid: '', ...base, _new: true,
 });
 function editDraft(id) {
@@ -347,11 +381,11 @@ function formHtml(d) {
     ? `<div class="chips" id="chips"><small>Dal database:</small>${d.suggest.map((s) => `<button type="button" class="chip" data-fill="${esc(s)}">${esc(s)}</button>`).join('')}</div>`
     : '';
   return `<form id="recForm" autocomplete="off">
-    <header class="sheet-h"><h2 id="formTitle">${d._new ? 'Nuovo disco' : esc(d._orig)}</h2><button type="button" class="btn icon" data-close aria-label="Chiudi">×</button></header>
+    <header class="sheet-h"><h2 id="formTitle">${d._new ? `Nuovo ${fmtOf(d.id)}` : esc(d._orig)}</h2><button type="button" class="btn icon" data-close aria-label="Chiudi">×</button></header>
     <div class="sheet-b">
       <div class="seg" role="radiogroup" aria-label="Categoria">${seg}</div>
       <div class="row2">
-        <label class="field"><span>Indice</span><input name="id" value="${esc(d.id)}" required></label>
+        <label class="field"><span>Indice (LP o CD)</span><input name="id" value="${esc(d.id)}" required></label>
         <label class="field"><span>Anno</span><input name="year" value="${esc(d.year)}" inputmode="numeric" maxlength="4"></label>
       </div>
       <div data-for="classic" ${classic ? '' : 'hidden'}>
@@ -465,7 +499,7 @@ function readForm(form) {
   const f = new FormData(form);
   const cat = f.get('cat');
   const rec = {
-    id: formatId(f.get('id')),
+    id: formatId(f.get('id'), fmtOf(draft?.id)),
     cat,
     works: [],
     artist: '', title: '',
@@ -494,7 +528,7 @@ function readForm(form) {
 
 async function saveDraft(form, again, dlg) {
   const rec = readForm(form);
-  if (!rec.id) return toast('Serve un indice, per esempio LP0024.');
+  if (!rec.id) return toast('Serve un indice, per esempio LP0024 o CD0005.');
   if (isClassic(rec.cat) ? !rec.works.length : !(rec.artist || rec.title)) {
     return toast(isClassic(rec.cat) ? 'Inserisci almeno un compositore o una composizione.' : 'Inserisci almeno artista o titolo.');
   }
@@ -524,11 +558,13 @@ async function saveDraft(form, again, dlg) {
   touchChanges();
   navigator.storage?.persist?.();
   state.cat = rec.cat;
+  state.fmt = fmtOf(rec.id);
   store.set('cat', state.cat);
+  store.set('fmt', state.fmt);
   render();
   dlg.close();
   toast(`Salvato ${rec.id}`);
-  if (again) openAdd(rec.cat);
+  if (again) openAdd(rec.cat, fmtOf(rec.id));
 }
 
 async function deleteDraft(dlg) {
@@ -550,23 +586,35 @@ function addCatsHtml() {
     (c) => `<label><input type="radio" name="addcat" value="${c.id}" ${c.id === state.addCat ? 'checked' : ''}><span>${c.name}</span></label>`,
   ).join('');
 }
+function addFmtsHtml() {
+  $('#addFmts').innerHTML = FORMATS.map(
+    (f) => `<label><input type="radio" name="addfmt" value="${f}" ${f === state.addFmt ? 'checked' : ''}><span>${f}${f === 'LP' ? ' (vinile)' : ' (compact disc)'}</span></label>`,
+  ).join('');
+  $('#addTitle').textContent = `Aggiungi ${state.addFmt}`;
+}
 $('#addCats').addEventListener('change', (e) => {
   state.addCat = e.target.value;
   store.set('addCat', state.addCat);
 });
+$('#addFmts').addEventListener('change', (e) => {
+  state.addFmt = e.target.value;
+  $('#addTitle').textContent = `Aggiungi ${state.addFmt}`;
+});
 
-function openAdd(cat) {
+function openAdd(cat, fmt) {
   if (cat) {
     state.addCat = cat;
     store.set('addCat', cat);
   }
+  state.addFmt = fmt || state.fmt;
+  addFmtsHtml();
   addCatsHtml();
   lastBarcode = '';
   $('#searchQ').value = '';
   $('#dlgAdd').showModal();
   startScan();
 }
-$('#btnAdd').addEventListener('click', () => openAdd(CATS.some((c) => c.id === state.cat) ? state.cat : state.addCat));
+$('#btnAdd').addEventListener('click', () => openAdd(CATS.some((c) => c.id === state.cat) ? state.cat : state.addCat, state.fmt));
 $('#dlgAdd').addEventListener('close', () => Scan.stop());
 document.addEventListener('visibilitychange', () => document.hidden && Scan.stop());
 
@@ -649,7 +697,7 @@ async function runSearch(raw) {
   msg.className = 'hint';
   msg.textContent = isBar ? `Cerco il codice ${digits}…` : `Cerco «${raw}»…`;
   try {
-    lastResults = isBar ? await MB.byBarcode(digits) : await MB.byText(raw);
+    lastResults = isBar ? await MB.byBarcode(digits, state.addFmt) : await MB.byText(raw, state.addFmt);
   } catch (e) {
     msg.className = 'hint err';
     msg.textContent = e.message + ' Puoi inserire i dati a mano: il codice a barre resta salvato.';
@@ -707,13 +755,14 @@ function openMenu() {
   const dlg = $('#dlgMenu');
   dlg.innerHTML = `<header class="sheet-h"><h2 id="menuTitle">Menu</h2><button class="btn icon" data-close aria-label="Chiudi">×</button></header>
     <div class="sheet-b"><div class="menu-list">
-      <p class="stat">${state.records.length} dischi · ultimo backup: ${fmtDate(store.get('lastBackup', ''))}</p>
+      <p class="stat">${totalsLine()} · ultimo backup: ${fmtDate(store.get('lastBackup', ''))}</p>
       <button class="btn" data-act="xlsx">Esporta in Excel</button>
       <button class="btn" data-act="json">Backup completo (JSON, con copertine)</button>
       <button class="btn" data-act="import">Importa da Excel o backup</button>
       <label class="toggle"><input type="checkbox" id="optPer" ${state.perComposer ? 'checked' : ''}> Mostra i dischi con più compositori sotto ciascuno</label>
       ${installEvent && !standalone ? '<button class="btn primary" data-act="install">Installa l\'app</button>' : ''}
       ${ios && !standalone ? '<p class="stat">Per installarla su iPhone: Condividi, poi «Aggiungi alla schermata Home».</p>' : ''}
+      <p class="about-box"><b>${esc(APP_NAME)}</b><br>by PL &amp; IA · versione ${esc(appVersion())}</p>
     </div></div>`;
   IO.preloadXlsx();
   dlg.showModal();
@@ -746,14 +795,14 @@ const stamp = () => new Date().toISOString().slice(0, 10);
 async function doExportXlsx() {
   if (!state.records.length) return toast('Non c\'è ancora nulla da esportare.');
   try {
-    const res = await IO.saveBlob(await IO.xlsxBlob(state.records), `vinili-${stamp()}.xlsx`);
+    const res = await IO.saveBlob(await IO.xlsxBlob(state.records), `${APP_NAME}-${stamp()}.xlsx`);
     if (res !== 'cancelled') { markBackup(); toast('File Excel pronto'); }
   } catch (e) { toast(e.message || 'Esportazione non riuscita.'); }
 }
 async function doExportJson() {
   if (!state.records.length) return toast('Non c\'è ancora nulla da esportare.');
   try {
-    const res = await IO.saveBlob(IO.backupJson(state.records), `vinili-backup-${stamp()}.json`);
+    const res = await IO.saveBlob(IO.backupJson(state.records), `${APP_NAME}-backup-${stamp()}.json`);
     if (res !== 'cancelled') { markBackup(); toast('Backup salvato'); }
   } catch (e) { toast(e.message || 'Backup non riuscito.'); }
 }
@@ -774,10 +823,11 @@ function openImport(recs, name) {
   const have = new Set(state.records.map((r) => r.id));
   const fresh = recs.filter((r) => !have.has(r.id));
   const byCat = CATS.map((c) => [c.name, recs.filter((r) => r.cat === c.id).length]).filter(([, n]) => n);
+  const byFmt = FORMATS.map((f) => [f, recs.filter((r) => fmtOf(r.id) === f).length]).filter(([, n]) => n);
   const dlg = $('#dlgImport');
   dlg.innerHTML = `<header class="sheet-h"><h2 id="impTitle">Importa dischi</h2><button class="btn icon" data-close aria-label="Chiudi">×</button></header>
     <div class="sheet-b">
-      <p class="stat" style="color:var(--ink)">${esc(name)}: ${recs.length} dischi (${byCat.map(([n, c]) => `${c} ${n}`).join(', ')}).</p>
+      <p class="stat" style="color:var(--ink)">${esc(name)}: ${recs.length} dischi (${byFmt.map(([n, c]) => `${c} ${n}`).join(', ')}; ${byCat.map(([n, c]) => `${c} ${n}`).join(', ')}).</p>
       ${state.records.length ? `<p class="stat">${fresh.length} sono nuovi; ${recs.length - fresh.length} hanno un indice già presente.</p>` : ''}
       <p class="stat">Se il file non indica la categoria, riconosco i dischi d'opera dal titolo; puoi correggerli aprendoli uno per uno.</p>
       <div class="form-actions">
@@ -795,8 +845,13 @@ function openImport(recs, name) {
     await DB.putMany(toSave, { replace: what === 'replace' });
     state.records = await DB.all();
     navigator.storage?.persist?.();
-    const firstCat = toSave[0]?.cat;
-    if (firstCat) { state.cat = firstCat; store.set('cat', firstCat); }
+    const first = toSave[0];
+    if (first) {
+      state.cat = first.cat;
+      state.fmt = fmtOf(first.id);
+      store.set('cat', state.cat);
+      store.set('fmt', state.fmt);
+    }
     render();
     dlg.close();
     toast(`${toSave.length} dischi importati`);
@@ -807,6 +862,9 @@ function openImport(recs, name) {
 /* ---------- avvio ---------- */
 async function boot() {
   buildTabs();
+  $('#verTop').textContent = `v${appVersion()}`;
+  $('#about').innerHTML = `${esc(APP_CREDIT)} · versione ${esc(appVersion())}`;
+  document.title = APP_NAME;
   updateStick();
   try {
     state.records = await DB.all();

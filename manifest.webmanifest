@@ -1,7 +1,7 @@
 {
-  "name": "Vinili",
-  "short_name": "Vinili",
-  "description": "Il catalogo dei miei dischi in vinile",
+  "name": "LibreriaMusicalePL",
+  "short_name": "LibreriaPL",
+  "description": "Il catalogo dei miei LP e CD",
   "lang": "it",
   "start_url": "./",
   "scope": "./",

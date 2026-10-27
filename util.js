@@ -5,6 +5,14 @@ export const CATS = [
   { id: 'poprock', name: 'Pop/Rock' },
   { id: 'altro', name: 'Altro' },
 ];
+export const APP_NAME = 'LibreriaMusicalePL';
+export const APP_CREDIT = 'LibreriaMusicalePL by PL & IA';
+export const appVersion = () => globalThis.APP_VERSION || '?';
+
+// Formato fisico: lo decide il prefisso dell'indice (LPxxxx = vinile, CDxxxx = CD).
+export const FORMATS = ['LP', 'CD'];
+export const fmtOf = (id) => (/^cd/i.test(String(id ?? '')) ? 'CD' : 'LP');
+
 export const catName = (id) => CATS.find((c) => c.id === id)?.name ?? id;
 export const isClassic = (cat) => cat === 'classica' || cat === 'lirica';
 
@@ -29,20 +37,26 @@ export function composersOf(r) {
   return out;
 }
 
-export function formatId(raw) {
+const pad4 = (n) => String(parseInt(n, 10)).padStart(4, '0');
+
+// "12" -> LP0012 (o CD0012 se il formato predefinito è CD); "cd 5" -> CD0005
+export function formatId(raw, fmt = 'LP') {
   const s = String(raw ?? '').trim();
-  let m = /^(\d+)$/.exec(s) || /^lp\s*0*(\d+)$/i.exec(s);
-  if (m) return 'LP' + String(parseInt(m[1], 10)).padStart(4, '0');
+  let m = /^(\d+)$/.exec(s);
+  if (m) return fmt + pad4(m[1]);
+  m = /^(lp|cd)\s*0*(\d+)$/i.exec(s);
+  if (m) return m[1].toUpperCase() + pad4(m[2]);
   return s;
 }
 
-export function nextId(records) {
+export function nextId(records, fmt = 'LP') {
   let max = 0;
   for (const r of records) {
+    if (fmtOf(r.id) !== fmt) continue;
     const n = parseInt(String(r.id).replace(/\D/g, ''), 10);
     if (n > max) max = n;
   }
-  return 'LP' + String(max + 1).padStart(4, '0');
+  return fmt + String(max + 1).padStart(4, '0');
 }
 
 // Chiave di ordinamento: compositore (classica/lirica) o artista (pop/rock/altro).

@@ -1,5 +1,5 @@
 // Import/export: Excel (stesso formato del catalogo esistente) e backup JSON.
-import { CATS, isClassic, norm, tidyComposer, formatId, worksOf, sortKeyFor, compareEntries, loadScript } from './util.js';
+import { CATS, isClassic, norm, tidyComposer, formatId, worksOf, sortKeyFor, compareEntries, loadScript, fmtOf, APP_NAME, appVersion } from './util.js';
 
 const OPERA_RE = /\b(opera|highlights?|selezione|arie|aria|atti|atto)\b/i;
 
@@ -107,13 +107,13 @@ export async function readFile(file) {
 }
 
 export function backupJson(records) {
-  const data = { app: 'vinili', version: 1, exported: new Date().toISOString(), records };
+  const data = { app: APP_NAME, appVersion: appVersion(), version: 1, exported: new Date().toISOString(), records };
   return new Blob([JSON.stringify(data)], { type: 'application/json' });
 }
 
-function sorted(records, cat) {
+function sorted(records, fmt, cat) {
   return records
-    .filter((r) => r.cat === cat)
+    .filter((r) => r.cat === cat && fmtOf(r.id) === fmt)
     .map((rec) => ({ rec, key: sortKeyFor(rec) }))
     .sort(compareEntries)
     .map((e) => e.rec);
@@ -122,8 +122,11 @@ function sorted(records, cat) {
 export async function buildWorkbook(records) {
   const X = await xlsxLib();
   const wb = X.utils.book_new();
-  for (const cat of CATS) {
-    const list = sorted(records, cat.id);
+  // Un foglio per formato e categoria ("LP Classica", "CD Pop-Rock"...); i formati senza dischi non compaiono.
+  let fmts = ['LP', 'CD'].filter((f) => records.some((r) => fmtOf(r.id) === f));
+  if (!fmts.length) fmts = ['LP'];
+  for (const [fmt, cat] of fmts.flatMap((f) => CATS.map((c) => [f, c]))) {
+    const list = sorted(records, fmt, cat.id);
     let aoa, widths;
     if (isClassic(cat.id)) {
       aoa = [['Index', 'Compositore/i', 'Composizione', 'Etichetta discografica', 'Numero di catalogo', 'Note', 'Anno', 'Barcode']];
@@ -146,7 +149,7 @@ export async function buildWorkbook(records) {
     const ws = X.utils.aoa_to_sheet(aoa);
     ws['!cols'] = widths.map((wch) => ({ wch }));
     ws['!freeze'] = { xSplit: 0, ySplit: 1 };
-    X.utils.book_append_sheet(wb, ws, cat.name.replace('/', '-'));
+    X.utils.book_append_sheet(wb, ws, `${fmt} ${cat.name.replace('/', '-')}`);
   }
   return wb;
 }

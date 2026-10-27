@@ -48,27 +48,31 @@ function parse(r) {
     format,
     country: r.country || '',
     vinyl: /vinyl|lp/i.test(format),
+    cd: /\b(cd|sacd|hdcd)\b|compact disc/i.test(format),
     score: Number(r.score) || 0,
   };
 }
 
-const rank = (a, b) => Number(b.vinyl) - Number(a.vinyl) || b.score - a.score;
+const rank = (fmt) => (a, b) => {
+  const k = fmt === 'CD' ? 'cd' : 'vinyl';
+  return Number(b[k]) - Number(a[k]) || b.score - a.score;
+};
 
-async function search(query) {
+async function search(query, fmt) {
   const j = await mb('release/?limit=25&query=' + encodeURIComponent(query));
-  return (j.releases || []).map(parse).sort(rank).slice(0, 12);
+  return (j.releases || []).map(parse).sort(rank(fmt)).slice(0, 12);
 }
 
-export function byBarcode(code) {
+export function byBarcode(code, fmt = 'LP') {
   const variants = [code];
   if (code.length === 12) variants.push('0' + code);
   if (code.length === 13 && code[0] === '0') variants.push(code.slice(1));
-  return search(variants.map((v) => `barcode:${v}`).join(' OR '));
+  return search(variants.map((v) => `barcode:${v}`).join(' OR '), fmt);
 }
 
-export function byText(text) {
+export function byText(text, fmt = 'LP') {
   const q = lucene(text);
-  return search(`release:(${q}) OR artist:(${q}) OR catno:"${q}"`);
+  return search(`release:(${q}) OR artist:(${q}) OR catno:"${q}"`, fmt);
 }
 
 export async function fetchCover(mbid) {
