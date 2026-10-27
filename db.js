@@ -55,3 +55,10 @@ export async function putMany(recs, { replace = false } = {}) {
   for (const r of recs) store.put(r);
   await done(tx);
 }
+
+export async function clear() {
+  const db = await open();
+  const tx = db.transaction(STORE, 'readwrite');
+  tx.objectStore(STORE).clear();
+  await done(tx);
+}

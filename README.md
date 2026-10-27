@@ -33,6 +33,7 @@ Il telefono può tenere una copia vecchia dei file. Dalla versione 1.0.1 l'app s
   controlla i campi e salva. "Salva e aggiungi altro" riapre subito lo scanner. L'indice successivo è assegnato per formato.
 - **Importa**: dal menu, un file Excel (anche quello originale `Libreria_Catalog.xlsx`) oppure un backup JSON.
   Gli indici LP e CD vengono riconosciuti dal prefisso.
+- **Cancella tutto il catalogo**: dal menu, con doppia conferma (avviso con possibilità di backup, poi parola da scrivere).
 - **Esporta**: Excel con un foglio per formato e categoria ("LP Classica", "CD Pop-Rock"…), oppure backup JSON con le copertine.
 - Fai ogni tanto un backup: i dati esistono solo su questo dispositivo.
 - Non caricare nel repository i file di catalogo o di backup: contengono la tua collezione.

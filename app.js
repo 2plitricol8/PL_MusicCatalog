@@ -763,6 +763,7 @@ function openMenu() {
       <label class="toggle"><input type="checkbox" id="optPer" ${state.perComposer ? 'checked' : ''}> Mostra i dischi con più compositori sotto ciascuno</label>
       ${installEvent && !standalone ? '<button class="btn primary" data-act="install">Installa l\'app</button>' : ''}
       ${ios && !standalone ? '<p class="stat">Per installarla su iPhone: Condividi, poi «Aggiungi alla schermata Home».</p>' : ''}
+      ${state.records.length ? '<div class="danger-zone"><button class="btn danger" data-act="wipe">Cancella tutto il catalogo…</button></div>' : ''}
       <p class="about-box"><b>${esc(APP_NAME)}</b><br>by PL &amp; IA · versione ${esc(appVersion())}</p>
     </div></div>`;
   IO.preloadXlsx();
@@ -775,6 +776,7 @@ $('#dlgMenu').addEventListener('click', async (e) => {
   if (act === 'import') { $('#dlgMenu').close(); return $('#fileImport').click(); }
   if (act === 'install') { installEvent?.prompt(); return; }
   if (act === 'repair') return window.repairApp?.();
+  if (act === 'wipe') { $('#dlgMenu').close(); return openWipe(); }
   $('#dlgMenu').close();
   if (act === 'xlsx') doExportXlsx();
   if (act === 'json') doExportJson();
@@ -860,6 +862,60 @@ function openImport(recs, name) {
   };
   dlg.showModal();
 }
+
+/* ---------- cancellazione di tutto il catalogo (doppia conferma) ---------- */
+function wipeStep1() {
+  const n = state.records.length;
+  $('#dlgWipe').innerHTML = `<header class="sheet-h"><h2 id="wipeTitle">Cancellare tutto il catalogo?</h2><button class="btn icon" data-close aria-label="Chiudi">×</button></header>
+    <div class="sheet-b">
+      <p style="margin:0">Stai per eliminare <b>${n} ${n === 1 ? 'disco' : 'dischi'}</b> (${totalsLine()}) da questo dispositivo. L'operazione non si può annullare.</p>
+      <p class="stat" style="margin:0">Ultimo backup: ${fmtDate(store.get('lastBackup', ''))}. Meglio salvarne uno prima di continuare.</p>
+      <div class="row-actions"><button class="btn" data-wb="xlsx">Backup Excel</button><button class="btn" data-wb="json">Backup JSON</button></div>
+      <div class="form-actions"><button class="btn" data-close>Annulla</button><button class="btn danger" data-wipe="next">Continua</button></div>
+    </div>`;
+}
+function wipeStep2() {
+  const n = state.records.length;
+  $('#dlgWipe').innerHTML = `<header class="sheet-h"><h2 id="wipeTitle">Ultima conferma</h2><button class="btn icon" data-close aria-label="Chiudi">×</button></header>
+    <div class="sheet-b">
+      <p style="margin:0">Per eliminare definitivamente ${n === 1 ? 'il disco' : `i ${n} dischi`} scrivi <b>CANCELLA</b> nel campo qui sotto.</p>
+      <input id="wipeWord" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Scrivi CANCELLA per confermare">
+      <div class="form-actions"><button class="btn" data-close>Annulla</button><button class="btn danger solid" id="wipeGo" disabled>Cancella tutto</button></div>
+    </div>`;
+  $('#wipeWord').focus();
+}
+function openWipe() {
+  if (!state.records.length) return toast('Il catalogo è già vuoto.');
+  wipeStep1();
+  $('#dlgWipe').showModal();
+}
+$('#dlgWipe').addEventListener('click', async (e) => {
+  const wb = e.target.closest('[data-wb]')?.dataset.wb;
+  if (wb) {
+    await (wb === 'xlsx' ? doExportXlsx() : doExportJson());
+    return wipeStep1();
+  }
+  if (e.target.closest('[data-wipe=next]')) return wipeStep2();
+  if (e.target.closest('#wipeGo') && !$('#wipeGo').disabled) {
+    try {
+      await DB.clear();
+    } catch {
+      return toast('Non sono riuscito a cancellare. Riprova.');
+    }
+    state.records = [];
+    state.q = '';
+    state.filter = '';
+    $('#q').value = '';
+    store.set('changes', 0);
+    refreshLists();
+    render();
+    $('#dlgWipe').close();
+    toast('Catalogo cancellato');
+  }
+});
+$('#dlgWipe').addEventListener('input', (e) => {
+  if (e.target.id === 'wipeWord') $('#wipeGo').disabled = norm(e.target.value) !== 'cancella';
+});
 
 /* ---------- avvio ---------- */
 async function boot() {
