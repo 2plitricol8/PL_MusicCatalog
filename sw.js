@@ -11,7 +11,12 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(VERSION).then((c) => Promise.allSettled(ASSETS.map((a) => c.add(a)))).then(() => self.skipWaiting()));
+  // cache: 'reload' = si scaricano davvero i file nuovi, senza passare dalla cache HTTP del browser
+  e.waitUntil(
+    caches.open(VERSION)
+      .then((c) => Promise.allSettled(ASSETS.map((a) => c.add(new Request(a, { cache: 'reload' })))))
+      .then(() => self.skipWaiting()),
+  );
 });
 
 self.addEventListener('activate', (e) => {
@@ -22,24 +27,24 @@ self.addEventListener('activate', (e) => {
   );
 });
 
+// Strategia: prima la rete (con revalidazione, così pagina e script sono sempre della stessa versione),
+// e se manca la rete o è troppo lenta (4 s) si usa la copia salvata: l'app funziona offline.
 self.addEventListener('fetch', (e) => {
   const req = e.request;
   const url = new URL(req.url);
   if (req.method !== 'GET' || url.origin !== location.origin) return; // API e copertine: sempre dalla rete
-  e.respondWith(
-    caches.open(VERSION).then(async (cache) => {
-      const hit = await cache.match(req, { ignoreSearch: true });
-      const net = fetch(req)
-        .then((res) => {
-          if (res.ok) cache.put(req, res.clone());
-          return res;
-        })
-        .catch(() => null);
-      if (hit) {
-        e.waitUntil(net);
-        return hit;
-      }
-      return (await net) || (req.mode === 'navigate' ? cache.match('index.html') : Response.error());
-    }),
-  );
+  e.respondWith((async () => {
+    const cache = await caches.open(VERSION);
+    const hit = await cache.match(req, { ignoreSearch: true });
+    const net = fetch(req, { cache: 'no-cache' }).then((res) => {
+      if (res.ok) cache.put(req, res.clone());
+      return res;
+    });
+    if (!hit) {
+      try { return await net; } catch { return req.mode === 'navigate' ? (await cache.match('index.html')) || Response.error() : Response.error(); }
+    }
+    e.waitUntil(net.catch(() => {}));
+    const fresh = await Promise.race([net.catch(() => null), new Promise((r) => setTimeout(() => r(null), 4000))]);
+    return fresh && fresh.ok ? fresh : hit;
+  })());
 });

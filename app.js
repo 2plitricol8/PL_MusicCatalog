@@ -759,6 +759,7 @@ function openMenu() {
       <button class="btn" data-act="xlsx">Esporta in Excel</button>
       <button class="btn" data-act="json">Backup completo (JSON, con copertine)</button>
       <button class="btn" data-act="import">Importa da Excel o backup</button>
+      <button class="btn" data-act="repair">Forza aggiornamento dell'app</button>
       <label class="toggle"><input type="checkbox" id="optPer" ${state.perComposer ? 'checked' : ''}> Mostra i dischi con più compositori sotto ciascuno</label>
       ${installEvent && !standalone ? '<button class="btn primary" data-act="install">Installa l\'app</button>' : ''}
       ${ios && !standalone ? '<p class="stat">Per installarla su iPhone: Condividi, poi «Aggiungi alla schermata Home».</p>' : ''}
@@ -773,6 +774,7 @@ $('#dlgMenu').addEventListener('click', async (e) => {
   if (!act) return;
   if (act === 'import') { $('#dlgMenu').close(); return $('#fileImport').click(); }
   if (act === 'install') { installEvent?.prompt(); return; }
+  if (act === 'repair') return window.repairApp?.();
   $('#dlgMenu').close();
   if (act === 'xlsx') doExportXlsx();
   if (act === 'json') doExportJson();
@@ -873,6 +875,7 @@ async function boot() {
   }
   refreshLists();
   render();
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+  window.__appReady = true;
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).catch(() => {});
 }
 boot();

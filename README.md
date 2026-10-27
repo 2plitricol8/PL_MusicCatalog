@@ -19,6 +19,14 @@ LibreriaMusicalePL by PL & IA. App web installabile, senza server: tutti i dati 
 Il numero di versione sta **solo** in `version.js` (`self.APP_VERSION`). Si vede nella testata, nel menu e a fondo pagina.
 Dopo aver sostituito i file sul server, cambia quel numero: al secondo avvio l'app si aggiorna da sola.
 
+## Se dopo un aggiornamento l'app non cambia
+Il telefono può tenere una copia vecchia dei file. Dalla versione 1.0.1 l'app scarica sempre i file nuovi quando c'è rete.
+- Controlla che nell'intestazione compaia il numero di versione atteso (v1.0.1).
+- Chiudi e riapri l'app due o tre volte, oppure usa Menu → "Forza aggiornamento dell'app".
+- Se l'app non parte, dopo qualche secondo compare l'avviso "Aggiorna l'app".
+- Questi comandi non cancellano i dischi. Non eliminare l'icona dalla schermata Home e non cancellare i dati del sito: i dischi sono lì.
+- Verifica sul sito: l'indirizzo `.../version.js` deve mostrare la versione nuova; se dà errore 404, manca un file nel repository.
+
 ## Uso
 - **Aggiungi LP / Aggiungi CD**: scegli formato e categoria, inquadra il codice a barre sul retro della copertina
   (oppure "Foto del codice", oppure digita codice / n. catalogo / titolo). Scegli il risultato giusto,

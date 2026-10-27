@@ -88,6 +88,32 @@
   <input type="file" id="fileImport" accept=".xlsx,.xls,.json" hidden>
   <div class="toast" id="toast" role="status"></div>
 
+  <div class="loadfail" id="loadFail" hidden>
+    <p><b>L'app non si è caricata del tutto.</b> Di solito sul dispositivo ci sono file di versioni diverse.</p>
+    <button class="btn primary" id="btnRepair">Aggiorna l'app</button>
+    <p class="hint">I dischi salvati non vengono cancellati. Se l'errore resta, controlla che tutti i file siano stati caricati nel repository.</p>
+  </div>
+  <script>
+    // Svuota solo la copia offline dell'app (i dischi salvati restano) e riscarica tutti i file dal sito.
+    window.repairApp = async function () {
+      try {
+        const keys = await caches.keys();
+        await Promise.all(keys.filter((k) => /^(libreriamusicalepl|vinili)-/.test(k)).map((k) => caches.delete(k)));
+        // riscarica i file saltando anche la cache del browser
+        const files = ['index.html', 'styles.css', 'app.js', 'db.js', 'util.js', 'io.js', 'scanner.js', 'mb.js', 'version.js', 'manifest.webmanifest'];
+        await Promise.all(files.map((f) => fetch(f, { cache: 'reload' }).catch(() => {})));
+        if ('serviceWorker' in navigator) {
+          // installa (o aggiorna) il service worker: dal riavvio in poi i file passano da lui, sempre freschi
+          const reg = await navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' });
+          await reg.update().catch(() => {});
+          await Promise.race([navigator.serviceWorker.ready, new Promise((r) => setTimeout(r, 8000))]);
+        }
+      } catch (e) { /* si ricarica comunque */ }
+      location.reload();
+    };
+    document.getElementById('btnRepair').addEventListener('click', window.repairApp);
+    setTimeout(function () { if (!window.__appReady) document.getElementById('loadFail').hidden = false; }, 5000);
+  </script>
   <script src="version.js"></script>
   <script type="module" src="app.js"></script>
 </body>
